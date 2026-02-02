@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.JavaExec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -9,7 +10,12 @@ plugins {
 }
 
 kotlin {
-    jvm()
+    jvm {
+        @Suppress("OPT_IN_USAGE")
+        mainRun {
+            mainClass.set("com.hdil.datacollection_researcher.MainKt")
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -19,8 +25,6 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodelCompose)
-            implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
         }
@@ -31,6 +35,9 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutinesSwing)
+
+                implementation(compose.material)
+                implementation(compose.materialIconsExtended)
 
                 // Phase 3: Firestore Export (JVM)
                 implementation("com.google.firebase:firebase-admin:9.5.0")
@@ -54,3 +61,7 @@ compose.desktop {
         }
     }
 }
+
+
+
+

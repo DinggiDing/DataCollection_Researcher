@@ -1,36 +1,35 @@
- package com.hdil.datacollection_researcher.ui
+package com.hdil.datacollection_researcher.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 enum class AppSection(
     val title: String,
-    val subtitle: String,
 ) {
-    WORKFLOW("Workflow", "Export → Analyze → Excel"),
-    SETTINGS("Settings", "Credentials / Participant / Date range"),
-    OUTPUT("Output", "Open folders and results"),
-    // 앞으로 기능 추가용
-    ABOUT("About", "Build / version / help"),
+    WORKFLOW("Workflow"),
+    WORKSPACE("Workspace"),
+    CONFIGURATION("Configuration"),
+    DOCUMENTATION("Documentation"),
+    LOGS("Logs")
 }
 
 @Composable
@@ -39,83 +38,223 @@ fun AppSidebar(
     onSelect: (AppSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(16.dp)
-
     Column(
         modifier = modifier
-            .width(220.dp)
+            .width(260.dp)
             .fillMaxHeight()
-            .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = "DataCollection",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            text = "Researcher Tool",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Logo
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 24.dp, start = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color(0xFF4F46E5), RoundedCornerShape(8.dp)), // Indigo color
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("R", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "ResearchOS",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "v0.0.1 (Stable)",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
-        Spacer(Modifier.height(6.dp))
+            // MAIN Section
+            Text(
+                text = "MAIN",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+            )
 
-        AppSection.entries.forEach { section ->
             SidebarItem(
-                title = section.title,
-                subtitle = section.subtitle,
-                selected = section == selected,
-                onClick = { onSelect(section) },
+                section = AppSection.WORKFLOW,
+                isSelected = selected == AppSection.WORKFLOW,
+                onClick = { onSelect(AppSection.WORKFLOW) }
+            )
+            SidebarItem(
+                section = AppSection.WORKSPACE,
+                isSelected = selected == AppSection.WORKSPACE,
+                onClick = { onSelect(AppSection.WORKSPACE) }
+            )
+            SidebarItem(
+                section = AppSection.CONFIGURATION,
+                isSelected = selected == AppSection.CONFIGURATION,
+                onClick = { onSelect(AppSection.CONFIGURATION) }
+            )
+
+            // SYSTEM Section
+            Text(
+                text = "SYSTEM",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp, top = 24.dp, bottom = 8.dp)
+            )
+
+            SidebarItem(
+                section = AppSection.DOCUMENTATION,
+                isSelected = selected == AppSection.DOCUMENTATION,
+                onClick = { onSelect(AppSection.DOCUMENTATION) }
+            )
+            SidebarItem(
+                section = AppSection.LOGS,
+                isSelected = selected == AppSection.LOGS,
+                onClick = { onSelect(AppSection.LOGS) }
             )
         }
 
-        Spacer(Modifier.weight(1f))
-
-        Text(
-            text = "v0.1",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // User Profile
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("SB", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Seongjae Bae",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "HDIL (Yonsei)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color(0xFF4CAF50), CircleShape) // Green status dot
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun SidebarItem(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+fun SidebarItem(
+    section: AppSection,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(12.dp)
-    val bg = if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
 
-    Box(
-        modifier = modifier
+    // Command shortcut label (mock)
+    val shortcut = when (section) {
+        AppSection.WORKFLOW -> "⌘1"
+        AppSection.WORKSPACE -> "⌘2"
+        AppSection.CONFIGURATION -> "⌘,"
+        else -> ""
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(bg)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
+        SectionIcon(section, contentColor, Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = section.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = contentColor,
+            modifier = Modifier.weight(1f)
+        )
+        if (shortcut.isNotEmpty()) {
+             Box(
+                modifier = Modifier
+                    .background(if (isSelected) MaterialTheme.colorScheme.surface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                 Text(
+                     text = shortcut,
+                     style = MaterialTheme.typography.labelSmall,
+                     color = if (isSelected) contentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                 )
+             }
+        }
+    }
+}
+
+@Composable
+fun SectionIcon(section: AppSection, tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val s = w.coerceAtMost(h)
+        val stroke = s * 0.1f
+
+        when (section) {
+            AppSection.WORKFLOW -> {
+                // Dashboard-like grid
+                val gap = s * 0.15f
+                val rectS = (s - gap) / 2
+                drawRoundRect(color = tint, topLeft = Offset(0f, 0f), size = Size(rectS, rectS), cornerRadius = CornerRadius(2f))
+                drawRoundRect(color = tint, topLeft = Offset(rectS + gap, 0f), size = Size(rectS, rectS), cornerRadius = CornerRadius(2f))
+                drawRoundRect(color = tint, topLeft = Offset(0f, rectS + gap), size = Size(rectS, rectS), cornerRadius = CornerRadius(2f))
+                drawRoundRect(color = tint, topLeft = Offset(rectS + gap, rectS + gap), size = Size(rectS, rectS), cornerRadius = CornerRadius(2f))
+            }
+            AppSection.WORKSPACE -> {
+                // Folder
+                val p = Path().apply {
+                    moveTo(0f, h * 0.2f)
+                    lineTo(w * 0.4f, h * 0.2f)
+                    lineTo(w * 0.5f, h * 0.3f) // tab slant
+                    lineTo(w, h * 0.3f)
+                    lineTo(w, h * 0.85f)
+                    lineTo(0f, h * 0.85f)
+                    close()
+                }
+                drawPath(p, tint, style = Stroke(width = stroke))
+            }
+            AppSection.CONFIGURATION -> {
+                // Settings (Circle with hole)
+                drawCircle(tint, radius = s * 0.4f, style = Stroke(width = stroke))
+                drawCircle(tint, radius = s * 0.15f, style = Stroke(width = stroke))
+            }
+            AppSection.DOCUMENTATION -> {
+                // Info (Circle with i)
+                drawCircle(tint, radius = s * 0.45f, style = Stroke(width = stroke))
+                drawCircle(tint, center = center.copy(y = h * 0.35f), radius = s * 0.05f) // dot
+                drawLine(tint, start = center.copy(y = h * 0.45f), end = center.copy(y = h * 0.75f), strokeWidth = stroke)
+            }
+            AppSection.LOGS -> {
+                // List
+                val lineH = h * 0.2f
+                drawLine(tint, start = Offset(0f, lineH), end = Offset(w, lineH), strokeWidth = stroke)
+                drawLine(tint, start = Offset(0f, lineH * 2.5f), end = Offset(w, lineH * 2.5f), strokeWidth = stroke)
+                drawLine(tint, start = Offset(0f, lineH * 4f), end = Offset(w * 0.7f, lineH * 4f), strokeWidth = stroke)
             }
         }
     }

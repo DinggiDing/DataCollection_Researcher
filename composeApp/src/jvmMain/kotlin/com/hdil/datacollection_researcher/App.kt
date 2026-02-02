@@ -1,6 +1,8 @@
 package com.hdil.datacollection_researcher
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +55,9 @@ import com.hdil.datacollection_researcher.ui.ToggleButton
 import com.hdil.datacollection_researcher.status.DesktopParticipantStatusRepository
 import com.hdil.datacollection_researcher.status.ParticipantStatusViewModel
 import com.hdil.datacollection_researcher.ui.settings.ParticipantStatusScreen
+import com.hdil.datacollection_researcher.ui.workflow.WorkflowDashboardMapper
+import com.hdil.datacollection_researcher.ui.workflow.WorkflowDashboardScreen
+import com.hdil.datacollection_researcher.ui.workflow.WorkflowStep
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -109,9 +114,6 @@ fun App() {
         val analyzeState by analyzeViewModel.uiState.collectAsState()
         val excelState by excelViewModel.uiState.collectAsState()
 
-        val credentialsReady = credentialsState.status is CredentialsStatus.Saved
-        val participantReady = configState.participantId.trim().isNotEmpty()
-
         val outputDir = remember(appDirProvider) { File(appDirProvider.appDir(), "output") }
         val participantId = configState.participantId.trim().takeIf { it.isNotBlank() }
         val participantOutputDir = remember(outputDir, participantId) {
@@ -127,375 +129,113 @@ fun App() {
                 .any { it.isFile && it.name.contains("_korea_time", ignoreCase = true) && it.extension.equals("csv", ignoreCase = true) }
         }
 
-        val range = configState.dateRangeResult
-        val preset = configState.preset
-        val rangeSummary = remember(range.startMillisUtc, range.endMillisUtc, preset, configState.customStartDate, configState.customEndDate) {
-            when {
-                preset != null && range.startMillisUtc != null && range.endMillisUtc != null -> {
-                    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.of("UTC"))
-                    val s = fmt.format(Instant.ofEpochMilli(range.startMillisUtc))
-                    val e = fmt.format(Instant.ofEpochMilli(range.endMillisUtc))
-                    "Preset: ${preset.name.removePrefix("LAST_")} / $s ~ $e (UTC)"
-                }
-                (configState.customStartDate.isNotBlank() || configState.customEndDate.isNotBlank()) -> {
-                    val s = configState.customStartDate.ifBlank { "(none)" }
-                    val e = configState.customEndDate.ifBlank { "(none)" }
-                    "Custom: $s ~ $e"
-                }
-                range.startMillisUtc == null && range.endMillisUtc == null -> "Date Range: (none)"
-                else -> {
-                    "Date Range: start=${range.startMillisUtc}, end=${range.endMillisUtc}"
-                }
-            }
-        }
-
         var section by remember { mutableStateOf(AppSection.WORKFLOW) }
 
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .background(MaterialTheme.colorScheme.background), // Darker background for main area?
         ) {
             AppSidebar(
                 selected = section,
                 onSelect = { section = it },
             )
 
-            Spacer(Modifier.width(4.dp))
-
-            when (section) {
-                AppSection.WORKFLOW -> {
-                    // 기존: Left(설정) + Right(워크플로우)
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        // 기존 Row(Left/Right)를 그대로 넣음
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            // Left
-                            Column(
-                                modifier = Modifier
-                                    .weight(0.42f)
-                                    .fillMaxHeight()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Text(
-                                    text = "DataCollection Researcher",
-                                    style = MaterialTheme.typography.headlineSmall,
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(24.dp)
+            ) {
+                when (section) {
+                    AppSection.WORKFLOW -> {
+                        val uiState = remember(credentialsState, configState, exportState, analyzeState, excelState, exportFilesExist, koreaTimeFilesExist) {
+                            WorkflowDashboardMapper.map(
+                                WorkflowDashboardMapper.Inputs(
+                                    credentials = credentialsState,
+                                    config = configState,
+                                    export = exportState,
+                                    analyze = analyzeState,
+                                    excel = excelState,
+                                    outputDirectoryPath = outputDir.absolutePath,
+                                    exportFilesExist = exportFilesExist,
+                                    koreaTimeFilesExist = koreaTimeFilesExist,
                                 )
-
-                                SectionCard(
-                                    title = "Credentials",
-                                    subtitle = "Firestore 접근을 위한 서비스 계정 키(JSON)를 선택해 주세요.",
-                                ) {
-                                    val selectedPath = (credentialsState.lastSelectedPath
-                                        ?: (credentialsState.status as? CredentialsStatus.Saved)?.credentialPath)
-
-                                    Text(
-                                        text = when (credentialsState.status) {
-                                            CredentialsStatus.NotSaved -> "상태: 미설정"
-                                            is CredentialsStatus.Saved -> "상태: 설정됨"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-
-                                    Text(
-                                        text = selectedPath?.let { "선택됨: $it" } ?: "아직 선택된 키가 없어요.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-
-                                    credentialsState.message?.let {
-                                        Text(it, color = MaterialTheme.colorScheme.error)
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Button(
-                                            enabled = !credentialsState.isLoading,
-                                            onClick = {
-                                                val initialDir = credentialsState.lastSelectedPath
-                                                    ?.let { File(it).parentFile }
-                                                    ?.absolutePath
-                                                val selected = DesktopFilePicker.pickJsonFile(initialDirectory = initialDir)
-                                                credentialsViewModel.saveFromSelectedFile(selected)
-                                            },
-                                        ) { Text("Select") }
-
-                                        Button(
-                                            enabled = !credentialsState.isLoading,
-                                            onClick = { credentialsViewModel.refresh() },
-                                        ) { Text("Reload") }
-
-                                        if (credentialsState.isLoading) {
-                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        Button(
-                                            enabled = !credentialsState.isLoading,
-                                            onClick = {
-                                                runCatching { DesktopOpenFolder.openFolder(appDirProvider.appDir()) }
-                                                    .onFailure { t -> println(t.message ?: "폴더를 여는 중 문제가 발생했어요.") }
-                                            },
-                                        ) { Text("Open App Folder") }
-                                    }
-                                }
-
-                                SectionCard(
-                                    title = "Participant",
-                                    subtitle = "participantId만 입력하면 docRoot는 자동으로 구성돼요.",
-                                ) {
-                                    OutlinedTextField(
-                                        value = configState.participantId,
-                                        onValueChange = configViewModel::onParticipantIdChanged,
-                                        label = { Text("participantId") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true,
-                                    )
-
-                                    Text("Date Range", style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        rangeSummary,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        ToggleButton(
-                                            text = "1D",
-                                            selected = configState.preset == DateRangePreset.LAST_1D,
-                                            enabled = !configState.isLoading,
-                                            onClick = { configViewModel.selectPreset(DateRangePreset.LAST_1D) },
-                                        )
-                                        ToggleButton(
-                                            text = "7D",
-                                            selected = configState.preset == DateRangePreset.LAST_7D,
-                                            enabled = !configState.isLoading,
-                                            onClick = { configViewModel.selectPreset(DateRangePreset.LAST_7D) },
-                                        )
-                                        ToggleButton(
-                                            text = "30D",
-                                            selected = configState.preset == DateRangePreset.LAST_30D,
-                                            enabled = !configState.isLoading,
-                                            onClick = { configViewModel.selectPreset(DateRangePreset.LAST_30D) },
-                                        )
-                                        ToggleButton(
-                                            text = "Clear",
-                                            selected = false,
-                                            enabled = !configState.isLoading,
-                                            onClick = { configViewModel.clearDateRange() },
-                                        )
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    ) {
-                                        OutlinedTextField(
-                                            value = configState.customStartDate,
-                                            onValueChange = configViewModel::onCustomStartChanged,
-                                            label = { Text("Start (YYYY-MM-DD)") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true,
-                                        )
-                                        OutlinedTextField(
-                                            value = configState.customEndDate,
-                                            onValueChange = configViewModel::onCustomEndChanged,
-                                            label = { Text("End (YYYY-MM-DD)") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true,
-                                        )
-                                    }
-
-                                    configState.dateRangeError?.let {
-                                        Text(it, color = MaterialTheme.colorScheme.error)
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Button(
-                                            enabled = !configState.isLoading,
-                                            onClick = { configViewModel.save() },
-                                        ) { Text("Save") }
-
-                                        if (configState.isLoading) {
-                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        }
-                                    }
-
-                                    configState.message?.let {
-                                        Text(
-                                            it,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-
-                                SectionCard(
-                                    title = "Output",
-                                    subtitle = "생성된 파일은 이 폴더에 저장돼요.",
-                                ) {
-                                    Text(
-                                        outputDir.absolutePath,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Button(
-                                        onClick = {
-                                            runCatching { DesktopOpenFolder.openFolder(outputDir) }
-                                                .onFailure { t -> println(t.message ?: "폴더를 여는 중 문제가 발생했어요.") }
-                                        },
-                                    ) { Text("Open Output Folder") }
-                                }
-                            }
-
-                            // Right
-                            Column(
-                                modifier = Modifier
-                                    .weight(0.58f)
-                                    .fillMaxHeight()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Text("Workflow", style = MaterialTheme.typography.titleLarge)
-
-                                // 디버그/상태 표시: Step3 비활성 원인 빠른 확인용
-                                Text(
-                                    text = "Participant Output: ${participantOutputDir.absolutePath}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text = "Detect: export=$exportFilesExist, korea_time=$koreaTimeFilesExist",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-
-                                val exportEnabled = credentialsReady && participantReady && !exportState.isRunning
-                                val exportHint = when {
-                                    !credentialsReady -> "먼저 Credentials(서비스 계정 키)를 선택해 주세요."
-                                    !participantReady -> "participantId를 입력해 주세요."
-                                    else -> null
-                                }
-
-                                val analyzeEnabled = exportFilesExist && !analyzeState.isRunning
-                                val analyzeHint = if (!exportFilesExist) "Export를 먼저 실행해서 *_export_*.csv를 생성해 주세요." else null
-
-                                val excelEnabled = koreaTimeFilesExist && !excelState.isRunning
-                                val excelHint = if (!koreaTimeFilesExist) "Analyze를 먼저 실행해서 *_korea_time.csv를 생성해 주세요." else null
-
-                                StepPanel(
-                                    title = "Step 1 — Export",
-                                    hint = exportHint,
-                                    isRunning = exportState.isRunning,
-                                    primaryText = "Run Export",
-                                    primaryEnabled = exportEnabled,
-                                    onPrimary = { exportViewModel.runExport() },
-                                    secondaryText = "Clear Logs",
-                                    secondaryEnabled = !exportState.isRunning,
-                                    onSecondary = { exportViewModel.clearLogs() },
-                                    logs = exportState.logs,
-                                )
-
-                                StepPanel(
-                                    title = "Step 2 — Analyze",
-                                    hint = analyzeHint,
-                                    isRunning = analyzeState.isRunning,
-                                    primaryText = "Run Analyze",
-                                    primaryEnabled = analyzeEnabled,
-                                    onPrimary = { analyzeViewModel.runAnalyze(participantId) },
-                                    secondaryText = "Clear Logs",
-                                    secondaryEnabled = !analyzeState.isRunning,
-                                    onSecondary = { analyzeViewModel.clearLogs() },
-                                    logs = analyzeState.logs,
-                                )
-
-                                StepPanel(
-                                    title = "Step 3 — Excel",
-                                    hint = excelHint,
-                                    isRunning = excelState.isRunning,
-                                    primaryText = "Run Excel",
-                                    primaryEnabled = excelEnabled,
-                                    onPrimary = { excelViewModel.runExcel() },
-                                    secondaryText = "Clear Logs",
-                                    secondaryEnabled = !excelState.isRunning,
-                                    onSecondary = { excelViewModel.clearLogs() },
-                                    logs = excelState.logs,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                AppSection.SETTINGS -> {
-                    ParticipantStatusScreen(
-                        outputDir = outputDir,
-                        viewModel = participantStatusViewModel,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                AppSection.OUTPUT -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text("Output", style = MaterialTheme.typography.titleLarge)
-                        SectionCard(title = "Output Folder", subtitle = outputDir.absolutePath) {
-                            Button(
-                                onClick = {
-                                    runCatching { DesktopOpenFolder.openFolder(outputDir) }
-                                        .onFailure { t -> println(t.message ?: "폴더를 여는 중 문제가 발생했어요.") }
-                                },
-                            ) { Text("Open Output Folder") }
-                        }
-                    }
-                }
-
-                AppSection.ABOUT -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text("About", style = MaterialTheme.typography.titleLarge)
-                        SectionCard(title = "Info") {
-                            Text(
-                                "DataCollection Researcher Tool (KMP Desktop)\n" +
-                                    "- Export: Firestore → CSV\n" +
-                                    "- Analyze: KST + coverage\n" +
-                                    "- Excel: ResearcherView XLSX\n",
-                                style = MaterialTheme.typography.bodySmall,
                             )
+                        }
+
+                        WorkflowDashboardScreen(
+                            uiState = uiState,
+                            onChangeServiceKey = {
+                                val initialDir = credentialsState.lastSelectedPath?.let { File(it).parentFile }?.absolutePath
+                                val selected = DesktopFilePicker.pickJsonFile(initialDirectory = initialDir)
+                                credentialsViewModel.saveFromSelectedFile(selected)
+                            },
+                            onParticipantIdChanged = configViewModel::onParticipantIdChanged,
+                            onSelectRangeQuickOption = { option ->
+                                when (option) {
+                                    "1D" -> configViewModel.selectPreset(DateRangePreset.LAST_1D)
+                                    "1W" -> configViewModel.selectPreset(DateRangePreset.LAST_7D)
+                                    "1M" -> configViewModel.selectPreset(DateRangePreset.LAST_30D)
+                                    // "3M", "All" not supported in backend yet, ignore or clear
+                                    else -> configViewModel.clearDateRange()
+                                }
+                            },
+                            onRangeStartChanged = configViewModel::onCustomStartChanged,
+                            onRangeEndChanged = configViewModel::onCustomEndChanged,
+                            onClickOutputDirectory = {
+                                runCatching { DesktopOpenFolder.openFolder(outputDir) }
+                            },
+                            onRunStep = { step ->
+                                when (step) {
+                                    WorkflowStep.EXPORT -> exportViewModel.runExport()
+                                    WorkflowStep.ANALYZE -> analyzeViewModel.runAnalyze(participantId)
+                                    WorkflowStep.EXCEL -> excelViewModel.runExcel()
+                                }
+                            },
+                            onClearStepLogs = { step ->
+                                when (step) {
+                                    WorkflowStep.EXPORT -> exportViewModel.clearLogs()
+                                    WorkflowStep.ANALYZE -> analyzeViewModel.clearLogs()
+                                    WorkflowStep.EXCEL -> excelViewModel.clearLogs()
+                                }
+                            },
+                            onSync = {
+                                credentialsViewModel.refresh()
+                                configViewModel.load()
+                            },
+                            onRunAll = {
+                                // TODO: Implement sequence
+                                exportViewModel.runExport()
+                                // Ideally disable others until finished, or chain them.
+                                // For now just start export is better than nothing or crashing.
+                            }
+                        )
+                    }
+
+                    AppSection.WORKSPACE -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Workspace Section (Coming Soon)")
+                        }
+                    }
+
+                    AppSection.CONFIGURATION -> {
+                         ParticipantStatusScreen(
+                            outputDir = outputDir,
+                            viewModel = participantStatusViewModel,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
+                    AppSection.DOCUMENTATION -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Documentation Section")
+                        }
+                    }
+
+                    AppSection.LOGS -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("System Logs")
                         }
                     }
                 }
