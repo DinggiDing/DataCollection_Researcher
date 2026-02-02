@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  package-desktop:
+    name: Package Desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        # 리눅스도 필요하면 아래처럼 추가 가능
+        # os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle (cache)
+        uses: gradle/actions/setup-gradle@v3
+
+      # Windows에서 ./gradlew 호출을 bash로 통일하면 편함
+      - name: Package for current OS
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :composeApp:packageDistributionForCurrentOS
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            composeApp/build/compose/binaries/**
+            composeApp/build/distributions/**
