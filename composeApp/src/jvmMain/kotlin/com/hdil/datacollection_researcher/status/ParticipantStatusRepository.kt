@@ -69,6 +69,27 @@ class DesktopParticipantStatusRepository : ParticipantStatusRepository {
         // 여기서는 현재 화면 목적(한눈에 보는 상태)상 간단 버전으로 유지합니다.
         val (gapCount, missingMinuteCount) = computeMinuteGaps(fileInfos)
 
+        // build daily summaries
+        val allDates = fileInfos.flatMap { it.dailyCounts.keys }.distinct().sorted()
+        val dailySummaries = allDates.associateWith { date ->
+            var sensor = 0L
+            var health = 0L
+            var survey = 0L
+
+            fileInfos.forEach { info ->
+                val count = info.dailyCounts[date] ?: 0L
+                if (count > 0) {
+                   when (guessDataCategory(info.file.name)) {
+                       "SENSOR" -> sensor += count
+                       "HEALTH" -> health += count
+                       "SURVEY" -> survey += count
+                       else -> sensor += count // default
+                   }
+                }
+            }
+            DailyDataSummary(date, sensor, health, survey)
+        }
+
         return ParticipantDataStatus(
             participantId = participantId,
             fileCount = fileInfos.size,
@@ -77,7 +98,17 @@ class DesktopParticipantStatusRepository : ParticipantStatusRepository {
             gapCount = gapCount,
             missingMinuteCount = missingMinuteCount,
             files = fileInfos,
+            dailySummaries = dailySummaries,
         )
+    }
+
+    private fun guessDataCategory(filename: String): String {
+        val lower = filename.lowercase()
+        return when {
+            lower.contains("survey") || lower.contains("answer") -> "SURVEY"
+            lower.contains("heart") || lower.contains("ppg") || lower.contains("health") || lower.contains("sleep") -> "HEALTH"
+            else -> "SENSOR"
+        }
     }
 
     private fun summarizeFile(file: File): ParticipantStatusFileInfo {
@@ -100,6 +131,8 @@ class DesktopParticipantStatusRepository : ParticipantStatusRepository {
         var recordCount = 0L
         var header: List<String>? = null
         var lastTimestamp: Instant? = null
+        val dailyCounts = mutableMapOf<java.time.LocalDate, Long>()
+        val kst = ZoneId.of("Asia/Seoul")
 
         file.bufferedReader(Charsets.UTF_8).useLines { seq ->
             seq.forEachIndexed { idx, line ->
@@ -116,6 +149,8 @@ class DesktopParticipantStatusRepository : ParticipantStatusRepository {
                 val ts = extractTimestampInstant(parsedHeader, values)
                 if (ts != null) {
                     if (lastTimestamp == null || ts.isAfter(lastTimestamp)) lastTimestamp = ts
+                    val date = ts.atZone(kst).toLocalDate()
+                    dailyCounts[date] = (dailyCounts[date] ?: 0L) + 1
                 }
             }
         }
@@ -127,6 +162,7 @@ class DesktopParticipantStatusRepository : ParticipantStatusRepository {
             lastTimestamp = lastTimestamp,
             lastModified = lastModified,
             sizeBytes = sizeBytes,
+            dailyCounts = dailyCounts,
         )
     }
 
