@@ -52,6 +52,8 @@ import com.hdil.datacollection_researcher.ui.ResearcherTheme
 import com.hdil.datacollection_researcher.ui.SectionCard
 import com.hdil.datacollection_researcher.ui.StepPanel
 import com.hdil.datacollection_researcher.ui.ToggleButton
+import com.hdil.datacollection_researcher.status.DeleteParticipantDataUseCase
+import com.hdil.datacollection_researcher.status.DesktopParticipantDataRepository
 import com.hdil.datacollection_researcher.status.DesktopParticipantStatusRepository
 import com.hdil.datacollection_researcher.status.ParticipantStatusViewModel
 import com.hdil.datacollection_researcher.ui.settings.ParticipantStatusScreen
@@ -62,6 +64,9 @@ import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.hdil.datacollection_researcher.delete.DesktopFirestoreDeleter
+import com.hdil.datacollection_researcher.delete.FirestoreDeleteViewModel
+import com.hdil.datacollection_researcher.ui.delete.DeleteScreen
 
 @Composable
 fun App() {
@@ -90,7 +95,22 @@ fun App() {
         val excelViewModel = remember { ExcelViewModel(excelGenerator, configRepository, appDirProvider) }
 
         val participantStatusRepository = remember { DesktopParticipantStatusRepository() }
-        val participantStatusViewModel = remember { ParticipantStatusViewModel(participantStatusRepository) }
+        val participantDataRepository = remember { DesktopParticipantDataRepository() }
+        val deleteParticipantDataUseCase = remember { DeleteParticipantDataUseCase(participantDataRepository) }
+        val participantStatusViewModel = remember {
+            ParticipantStatusViewModel(
+                repository = participantStatusRepository,
+                deleteParticipantData = deleteParticipantDataUseCase,
+            )
+        }
+
+        val firestoreDeleter = remember { DesktopFirestoreDeleter() }
+        val firestoreDeleteViewModel = remember {
+            FirestoreDeleteViewModel(
+                credentialsRepository = credentialsRepository,
+                deleter = firestoreDeleter,
+            )
+        }
 
         DisposableEffect(Unit) {
             onDispose {
@@ -100,6 +120,7 @@ fun App() {
                 analyzeViewModel.close()
                 excelViewModel.close()
                 participantStatusViewModel.close()
+                firestoreDeleteViewModel.close()
             }
         }
 
@@ -223,6 +244,17 @@ fun App() {
                          ParticipantStatusScreen(
                             outputDir = outputDir,
                             viewModel = participantStatusViewModel,
+                            firestoreDeleteViewModel = firestoreDeleteViewModel,
+                            defaultDocRootForParticipantId = { id -> "/studies/nursing-study-001/participants/${id.trim()}" },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
+                    AppSection.DELETE -> {
+                        DeleteScreen(
+                            outputDir = outputDir,
+                            firestoreDeleteViewModel = firestoreDeleteViewModel,
+                            participantDataRepository = participantDataRepository,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

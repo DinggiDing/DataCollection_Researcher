@@ -3,16 +3,64 @@ package com.hdil.datacollection_researcher.ui.settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,9 +72,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hdil.datacollection_researcher.delete.FirestoreDeleteViewModel
 import com.hdil.datacollection_researcher.status.CoverageStatus
 import com.hdil.datacollection_researcher.status.DailyDataSummary
 import com.hdil.datacollection_researcher.status.ParticipantDataStatus
+import com.hdil.datacollection_researcher.status.ParticipantStatusActionState
 import com.hdil.datacollection_researcher.status.ParticipantStatusUiState
 import com.hdil.datacollection_researcher.status.ParticipantStatusViewModel
 import java.io.File
@@ -60,9 +110,20 @@ private fun calculateDailyStatus(
 fun ParticipantStatusScreen(
     outputDir: File,
     viewModel: ParticipantStatusViewModel,
+    firestoreDeleteViewModel: FirestoreDeleteViewModel,
+    defaultDocRootForParticipantId: (String) -> String,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val actionState by viewModel.actionState.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(actionState.message) {
+        val msg = actionState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.consumeMessage()
+    }
 
     LaunchedEffect(outputDir) {
         viewModel.refresh(outputDir)
@@ -70,6 +131,7 @@ fun ParticipantStatusScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
                 DashboardTopBar(onRefresh = { viewModel.refresh(outputDir) })
@@ -85,6 +147,11 @@ fun ParticipantStatusScreen(
                 is ParticipantStatusUiState.Loaded -> {
                     DashboardContent(
                         participants = s.items,
+                        actionState = actionState,
+                        outputDir = outputDir,
+                        onDeleteParticipant = { id -> viewModel.deleteParticipant(outputDir, id) },
+                        firestoreDeleteViewModel = firestoreDeleteViewModel,
+                        defaultDocRootForParticipantId = defaultDocRootForParticipantId,
                         modifier = Modifier.fillMaxSize().padding(16.dp)
                     )
                 }
@@ -116,6 +183,11 @@ fun DashboardTopBar(onRefresh: () -> Unit) {
 @Composable
 fun DashboardContent(
     participants: List<ParticipantDataStatus>,
+    actionState: ParticipantStatusActionState,
+    outputDir: File,
+    onDeleteParticipant: (String) -> Unit,
+    firestoreDeleteViewModel: FirestoreDeleteViewModel,
+    defaultDocRootForParticipantId: (String) -> String,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -249,6 +321,11 @@ fun DashboardContent(
                  if (selectedParticipant != null) {
                     ParticipantDetailPanel(
                         participant = selectedParticipant!!,
+                        actionState = actionState,
+                        outputDir = outputDir,
+                        onDeleteParticipant = onDeleteParticipant,
+                        firestoreDeleteViewModel = firestoreDeleteViewModel,
+                        defaultDocRootForParticipantId = defaultDocRootForParticipantId,
                         modifier = Modifier.fillMaxSize()
                     )
                  } else {
@@ -406,14 +483,119 @@ fun CoverageHeatmap(
 }
 
 @Composable
-fun ParticipantDetailPanel(participant: ParticipantDataStatus, modifier: Modifier) {
+fun ParticipantDetailPanel(
+    participant: ParticipantDataStatus,
+    actionState: ParticipantStatusActionState,
+    outputDir: File,
+    onDeleteParticipant: (String) -> Unit,
+    firestoreDeleteViewModel: FirestoreDeleteViewModel,
+    defaultDocRootForParticipantId: (String) -> String,
+    modifier: Modifier,
+) {
+    val participantId = participant.participantId
+
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable(participantId) { mutableStateOf(false) }
+    var showFirebaseDeleteDialog by rememberSaveable(participantId) { mutableStateOf(false) }
+
+    val isDeleting = actionState.deletingParticipantId == participantId
+    val canDelete = participantId.isNotBlank() && participantId != "(unknown)" && participantId != "unknown"
+
+    if (showDeleteDialog) {
+        val pathPreview = remember(outputDir, participantId) {
+            File(outputDir, participantId).absolutePath
+        }
+
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("참가자 데이터 삭제") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("아래 참가자의 output 데이터를 모두 삭제합니다.")
+                    Text("ID: $participantId", fontWeight = FontWeight.SemiBold)
+                    Text("경로: $pathPreview", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text("이 작업은 되돌릴 수 없습니다.", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteParticipant(participantId)
+                    }
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text("삭제")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isDeleting, onClick = { showDeleteDialog = false }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
+    if (showFirebaseDeleteDialog) {
+        FirebaseDeleteDialog(
+            participantId = participantId,
+            canDelete = canDelete,
+            defaultDocRoot = remember(participantId) { defaultDocRootForParticipantId(participantId) },
+            viewModel = firestoreDeleteViewModel,
+            onDismiss = { showFirebaseDeleteDialog = false },
+        )
+    }
+
     Column(modifier.padding(24.dp).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(participant.participantId, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(participantId, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = {}) { Icon(Icons.Default.MoreHoriz, null) }
+
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Default.MoreHoriz, null)
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("로컬 output 삭제") },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        enabled = canDelete && !isDeleting,
+                        onClick = {
+                            menuExpanded = false
+                            showDeleteDialog = true
+                        }
+                    )
+
+                    DropdownMenuItem(
+                        text = { Text("Firebase에서 삭제") },
+                        leadingIcon = { Icon(Icons.Default.CloudOff, contentDescription = null) },
+                        enabled = canDelete,
+                        onClick = {
+                            menuExpanded = false
+                            showFirebaseDeleteDialog = true
+                        }
+                    )
+                }
+            }
         }
         Text("Group: Unknown | Device: Unknown", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+
+        if (isDeleting) {
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("삭제 중...", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -525,4 +707,71 @@ fun SimpleTrendChart(
 
         drawLine(Color.Gray, Offset(0f, h), Offset(w, h), strokeWidth = 1.dp.toPx())
     }
+}
+
+@Composable
+private fun FirebaseDeleteDialog(
+    participantId: String,
+    canDelete: Boolean,
+    defaultDocRoot: String,
+    viewModel: FirestoreDeleteViewModel,
+    onDismiss: () -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    var docRoot by rememberSaveable(participantId) { mutableStateOf(defaultDocRoot) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Firebase 데이터 삭제") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Firestore에서 참가자 문서 및 하위 컬렉션 문서를 삭제합니다.")
+                Text("ID: $participantId", fontWeight = FontWeight.SemiBold)
+
+                OutlinedTextField(
+                    value = docRoot,
+                    onValueChange = { docRoot = it },
+                    label = { Text("docRoot (문서 경로)") },
+                    placeholder = { Text("studies/<studyId>/participants/<participantId>") },
+                    singleLine = true,
+                    enabled = !uiState.isRunning,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Text(
+                    "주의: 이 작업은 되돌릴 수 없습니다.\n권한이 충분한 서비스 계정 키를 사용하세요.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                if (uiState.logs.isNotEmpty()) {
+                    HorizontalDivider()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp, max = 220.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        uiState.logs.forEach { line ->
+                            Text(line, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = canDelete && !uiState.isRunning,
+                onClick = { viewModel.runDelete(docRoot) },
+            ) {
+                Text("삭제 실행")
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !uiState.isRunning, onClick = onDismiss) {
+                Text("닫기")
+            }
+        }
+    )
 }

@@ -28,6 +28,7 @@ enum class AppSection(
     WORKFLOW("Workflow"),
     WORKSPACE("Workspace"),
     CONFIGURATION("Configuration"),
+    DELETE("Delete"),
     DOCUMENTATION("Documentation"),
     LOGS("Logs")
 }
@@ -96,6 +97,11 @@ fun AppSidebar(
                 section = AppSection.CONFIGURATION,
                 isSelected = selected == AppSection.CONFIGURATION,
                 onClick = { onSelect(AppSection.CONFIGURATION) }
+            )
+            SidebarItem(
+                section = AppSection.DELETE,
+                isSelected = selected == AppSection.DELETE,
+                onClick = { onSelect(AppSection.DELETE) }
             )
 
             // SYSTEM Section
@@ -171,6 +177,7 @@ fun SidebarItem(
         AppSection.WORKFLOW -> "⌘1"
         AppSection.WORKSPACE -> "⌘2"
         AppSection.CONFIGURATION -> "⌘,"
+        AppSection.DELETE -> "⌘⌫"
         else -> ""
     }
 
@@ -255,6 +262,26 @@ fun SectionIcon(section: AppSection, tint: Color, modifier: Modifier = Modifier)
                 drawLine(tint, start = Offset(0f, lineH), end = Offset(w, lineH), strokeWidth = stroke)
                 drawLine(tint, start = Offset(0f, lineH * 2.5f), end = Offset(w, lineH * 2.5f), strokeWidth = stroke)
                 drawLine(tint, start = Offset(0f, lineH * 4f), end = Offset(w * 0.7f, lineH * 4f), strokeWidth = stroke)
+            }
+            AppSection.DELETE -> {
+                // Trash can
+                val stroke2 = stroke
+                // lid
+                drawLine(tint, start = Offset(w * 0.25f, h * 0.25f), end = Offset(w * 0.75f, h * 0.25f), strokeWidth = stroke2)
+                // body
+                val left = w * 0.3f
+                val right = w * 0.7f
+                val top = h * 0.3f
+                val bottom = h * 0.85f
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, bottom - top),
+                    cornerRadius = CornerRadius(2f),
+                    style = Stroke(width = stroke2),
+                )
+                // handle
+                drawLine(tint, start = Offset(w * 0.45f, h * 0.18f), end = Offset(w * 0.55f, h * 0.18f), strokeWidth = stroke2)
             }
         }
     }
