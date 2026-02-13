@@ -22,3 +22,7 @@ plugins {
 }
 
 include(":composeApp")
+
+// DataCollection(별도 프로젝트)와 composite build로 연결해서 renderer/ui 모듈을 재사용합니다.
+// 경로가 다르면 이 줄만 맞게 조정하면 됩니다.
+includeBuild("../DataCollection")

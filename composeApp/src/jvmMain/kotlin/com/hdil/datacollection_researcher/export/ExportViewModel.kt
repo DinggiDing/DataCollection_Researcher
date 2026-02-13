@@ -23,7 +23,7 @@ class ExportViewModel(
     private val _uiState = MutableStateFlow(ExportUiState())
     val uiState: StateFlow<ExportUiState> = _uiState.asStateFlow()
 
-    fun runExport() {
+    fun runExport(participantIdOverride: String? = null) {
         scope.launch {
             _uiState.update { it.copy(isRunning = true, logs = listOf("Export 시작…")) }
 
@@ -36,10 +36,18 @@ class ExportViewModel(
             }
 
             val config = appConfigRepository.loadOrDefault()
-            val participantId = config.participantId.trim()
-            val docRoot = config.resolvedDocRoot().trim()
+            val participantId = participantIdOverride?.trim() ?: config.participantId.trim()
+            _uiState.update { it.copy(logs = it.logs + "DEBUG: requestedWithId=$participantIdOverride, resolvedId=$participantId") }
 
-            if (participantId.isBlank() && config.docRoot.isNullOrBlank()) {
+            // Resolve docRoot: prefer override in config, otherwise use participantId default
+            val docRootInConfig = config.docRoot?.trim()
+            val docRoot = if (!docRootInConfig.isNullOrBlank()) {
+                 docRootInConfig
+            } else {
+                 "/studies/nursing-study-001/participants/$participantId"
+            }
+
+            if (participantId.isBlank() && docRoot.isBlank()) {
                 _uiState.update { it.copy(isRunning = false, logs = it.logs + "participantId 또는 docRoot를 입력해 주세요.") }
                 return@launch
             }

@@ -33,6 +33,7 @@ class AnalyzeViewModel(
                     isRunning = true,
                     logs = listOf(
                         "Analyze 시작…",
+                        "DEBUG: requestedId=$participantId",
                         "대상 폴더: ${participantDir.absolutePath}",
                     ),
                 )

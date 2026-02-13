@@ -54,6 +54,7 @@ fun WorkflowDashboardScreen(
     onSelectRangeQuickOption: (String) -> Unit,
     onRangeStartChanged: (String) -> Unit,
     onRangeEndChanged: (String) -> Unit,
+    onSaveConfig: () -> Unit,
     onClickOutputDirectory: () -> Unit,
     onRunStep: (WorkflowStep) -> Unit,
     onClearStepLogs: (WorkflowStep) -> Unit,
@@ -91,6 +92,7 @@ fun WorkflowDashboardScreen(
                     onSelectRangeQuickOption = onSelectRangeQuickOption,
                     onRangeStartChanged = onRangeStartChanged,
                     onRangeEndChanged = onRangeEndChanged,
+                    onSaveConfig = onSaveConfig,
                 )
 
                 OutputDirectoryCard(
@@ -203,6 +205,7 @@ private fun ConfigurationCard(
     onSelectRangeQuickOption: (String) -> Unit,
     onRangeStartChanged: (String) -> Unit,
     onRangeEndChanged: (String) -> Unit,
+    onSaveConfig: () -> Unit,
 ) {
     SectionCard(
         title = "CONFIGURATION",
@@ -327,6 +330,17 @@ private fun ConfigurationCard(
                 shape = ConfigControlShape,
                 colors = fieldColors,
             )
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        Button(
+            onClick = onSaveConfig,
+            shape = ConfigControlShape,
+            modifier = Modifier.fillMaxWidth().height(ConfigControlHeight),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) {
+            Text("Save Configuration")
         }
     }
 }

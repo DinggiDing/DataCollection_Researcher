@@ -28,6 +28,7 @@ enum class AppSection(
     WORKFLOW("Workflow"),
     WORKSPACE("Workspace"),
     CONFIGURATION("Configuration"),
+    BUILDER("Builder (beta)"),
     DELETE("Delete"),
     DOCUMENTATION("Documentation"),
     LOGS("Logs")
@@ -97,6 +98,11 @@ fun AppSidebar(
                 section = AppSection.CONFIGURATION,
                 isSelected = selected == AppSection.CONFIGURATION,
                 onClick = { onSelect(AppSection.CONFIGURATION) }
+            )
+            SidebarItem(
+                section = AppSection.BUILDER,
+                isSelected = selected == AppSection.BUILDER,
+                onClick = { onSelect(AppSection.BUILDER) }
             )
             SidebarItem(
                 section = AppSection.DELETE,
@@ -177,6 +183,7 @@ fun SidebarItem(
         AppSection.WORKFLOW -> "⌘1"
         AppSection.WORKSPACE -> "⌘2"
         AppSection.CONFIGURATION -> "⌘,"
+        AppSection.BUILDER -> "⌘3"
         AppSection.DELETE -> "⌘⌫"
         else -> ""
     }
@@ -249,6 +256,22 @@ fun SectionIcon(section: AppSection, tint: Color, modifier: Modifier = Modifier)
                 // Settings (Circle with hole)
                 drawCircle(tint, radius = s * 0.4f, style = Stroke(width = stroke))
                 drawCircle(tint, radius = s * 0.15f, style = Stroke(width = stroke))
+            }
+            AppSection.BUILDER -> {
+                // Pencil/edit like icon
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(size.width * 0.15f, size.height * 0.65f),
+                    size = Size(size.width * 0.7f, size.height * 0.2f),
+                    cornerRadius = CornerRadius(3f),
+                    style = Stroke(width = size.minDimension * 0.1f)
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(size.width * 0.2f, size.height * 0.7f),
+                    end = Offset(size.width * 0.75f, size.height * 0.25f),
+                    strokeWidth = size.minDimension * 0.1f
+                )
             }
             AppSection.DOCUMENTATION -> {
                 // Info (Circle with i)

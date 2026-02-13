@@ -25,13 +25,16 @@ class ExcelViewModel(
     private val _uiState = MutableStateFlow(ExcelUiState())
     val uiState: StateFlow<ExcelUiState> = _uiState.asStateFlow()
 
-    fun runExcel() {
+    fun runExcel(participantIdOverride: String? = null) {
         val outputRoot = File(appDirProvider.appDir(), "output")
         scope.launch {
             _uiState.update { it.copy(isRunning = true, logs = listOf("Excel(리포트) 생성 시작…")) }
 
             val config = appConfigRepository.loadOrDefault()
-            val participantId = config.participantId.trim().takeIf { it.isNotBlank() }
+            val participantId = participantIdOverride?.trim()?.takeIf { it.isNotBlank() }
+                ?: config.participantId.trim().takeIf { it.isNotBlank() }
+
+            _uiState.update { it.copy(logs = it.logs + "DEBUG: requestedWithId=$participantIdOverride, resolvedId=$participantId") }
 
             val participantDir = ParticipantOutputPaths.participantDir(outputRoot, participantId)
             _uiState.update { it.copy(logs = it.logs + "대상 폴더: ${participantDir.absolutePath}") }

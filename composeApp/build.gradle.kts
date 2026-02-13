@@ -44,11 +44,14 @@ kotlin {
 
                 // Phase 5: Excel 생성을 위한 Apache POI
                 api("org.apache.poi:poi-ooxml:5.4.0")
+
+                // NOTE: androidx.compose.*-android/*-jvmstubs/*-desktop 아티팩트는
+                // Compose Multiplatform(Desktop)에서는 불필요하며, 오히려 리졸브 실패를 유발할 수 있습니다.
+                // (특히 foundation-layout-android)
             }
         }
     }
 }
-
 
 compose.desktop {
     application {
@@ -61,7 +64,3 @@ compose.desktop {
         }
     }
 }
-
-
-
-

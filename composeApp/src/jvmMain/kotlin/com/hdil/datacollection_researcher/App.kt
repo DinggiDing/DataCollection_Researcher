@@ -67,6 +67,8 @@ import java.time.format.DateTimeFormatter
 import com.hdil.datacollection_researcher.delete.DesktopFirestoreDeleter
 import com.hdil.datacollection_researcher.delete.FirestoreDeleteViewModel
 import com.hdil.datacollection_researcher.ui.delete.DeleteScreen
+import com.hdil.datacollection_researcher.builder.ui.BuilderScreen
+import com.hdil.datacollection_researcher.builder.vm.BuilderViewModel
 
 @Composable
 fun App() {
@@ -112,6 +114,8 @@ fun App() {
             )
         }
 
+        val builderViewModel = remember { BuilderViewModel() }
+
         DisposableEffect(Unit) {
             onDispose {
                 credentialsViewModel.close()
@@ -121,6 +125,7 @@ fun App() {
                 excelViewModel.close()
                 participantStatusViewModel.close()
                 firestoreDeleteViewModel.close()
+                builderViewModel.close()
             }
         }
 
@@ -204,14 +209,15 @@ fun App() {
                             },
                             onRangeStartChanged = configViewModel::onCustomStartChanged,
                             onRangeEndChanged = configViewModel::onCustomEndChanged,
+                            onSaveConfig = configViewModel::save,
                             onClickOutputDirectory = {
                                 runCatching { DesktopOpenFolder.openFolder(outputDir) }
                             },
                             onRunStep = { step ->
                                 when (step) {
-                                    WorkflowStep.EXPORT -> exportViewModel.runExport()
-                                    WorkflowStep.ANALYZE -> analyzeViewModel.runAnalyze(participantId)
-                                    WorkflowStep.EXCEL -> excelViewModel.runExcel()
+                                    WorkflowStep.EXPORT -> exportViewModel.runExport(configState.participantId)
+                                    WorkflowStep.ANALYZE -> analyzeViewModel.runAnalyze(configState.participantId)
+                                    WorkflowStep.EXCEL -> excelViewModel.runExcel(configState.participantId)
                                 }
                             },
                             onClearStepLogs = { step ->
@@ -246,6 +252,14 @@ fun App() {
                             viewModel = participantStatusViewModel,
                             firestoreDeleteViewModel = firestoreDeleteViewModel,
                             defaultDocRootForParticipantId = { id -> "/studies/nursing-study-001/participants/${id.trim()}" },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
+                    AppSection.BUILDER -> {
+                        BuilderScreen(
+                            appDir = appDirProvider.appDir(),
+                            viewModel = builderViewModel,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
