@@ -2,7 +2,10 @@ package com.hdil.datacollection_researcher.credentials
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.prefs.Preferences
@@ -15,6 +18,12 @@ class DesktopCredentialsRepository(
         .userRoot()
         .node("com/hdil/datacollection_researcher")
 
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        prettyPrint = false
+    }
+
     override fun getLastSelectedPathOrNull(): String? =
         prefs.get(PREF_LAST_SELECTED_CREDENTIAL_PATH, null)
 
@@ -25,7 +34,9 @@ class DesktopCredentialsRepository(
         val content = runCatching { configFile.readText(Charsets.UTF_8) }.getOrNull()
             ?: return@withContext CredentialsStatus.NotSaved
 
-        val path = parseCredentialPathOrNull(content)
+        val path = runCatching {
+            json.decodeFromString(CredentialsLocalConfig.serializer(), content).credentialPath
+        }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: return@withContext CredentialsStatus.NotSaved
 
         CredentialsStatus.Saved(path)
@@ -62,38 +73,34 @@ class DesktopCredentialsRepository(
 
         // Atomic-ish write: temp then move
         val tmp = File(configFile.parentFile, configFile.name + ".tmp")
-        tmp.writeText(toJson(CredentialsLocalConfig(credentialPath = selectedFile.absolutePath)), Charsets.UTF_8)
-        Files.move(
-            tmp.toPath(),
-            configFile.toPath(),
-            StandardCopyOption.REPLACE_EXISTING,
-            StandardCopyOption.ATOMIC_MOVE,
-        )
+        val configJson = json.encodeToString(CredentialsLocalConfig.serializer(), CredentialsLocalConfig(credentialPath = selectedFile.absolutePath))
+        tmp.writeText(configJson, Charsets.UTF_8)
+
+        try {
+            Files.move(
+                tmp.toPath(),
+                configFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            // Some Windows filesystems (or synced/remote dirs) don't support atomic move.
+            Files.move(
+                tmp.toPath(),
+                configFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+        }
 
         prefs.put(PREF_LAST_SELECTED_CREDENTIAL_PATH, selectedFile.absolutePath)
 
         CredentialsStatus.Saved(selectedFile.absolutePath)
     }
 
-    private fun parseCredentialPathOrNull(json: String): String? {
-        // Minimal JSON parsing to avoid new deps in Phase 1.
-        // Expected: { "credentialPath": "/abs/path/to/key.json" }
-        val keyIndex = json.indexOf("\"credentialPath\"")
-        if (keyIndex < 0) return null
-        val colon = json.indexOf(':', startIndex = keyIndex)
-        if (colon < 0) return null
-        val firstQuote = json.indexOf('"', startIndex = colon + 1)
-        if (firstQuote < 0) return null
-        val secondQuote = json.indexOf('"', startIndex = firstQuote + 1)
-        if (secondQuote < 0) return null
-        return json.substring(firstQuote + 1, secondQuote)
-    }
-
-    private fun toJson(config: CredentialsLocalConfig): String =
-        "{\n  \"credentialPath\": \"${escapeJson(config.credentialPath)}\"\n}\n"
-
-    private fun escapeJson(value: String): String =
-        value.replace("\\", "\\\\").replace("\"", "\\\"")
+    @Serializable
+    private data class CredentialsLocalConfig(
+        val credentialPath: String,
+    )
 
     companion object {
         private const val PREF_LAST_SELECTED_CREDENTIAL_PATH = "lastSelectedCredentialsPath"
