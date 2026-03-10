@@ -4,9 +4,7 @@ import com.google.api.core.ApiFuture
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.firestore.CollectionReference
 import com.google.cloud.firestore.DocumentReference
-import com.google.cloud.firestore.DocumentSnapshot
 import com.google.cloud.firestore.Firestore
-import com.google.cloud.firestore.Query
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.cloud.FirestoreClient
@@ -17,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.io.File
+import java.util.UUID
 
 class DesktopFirestoreDeleter : FirestoreDeleter {
 
@@ -42,7 +41,8 @@ class DesktopFirestoreDeleter : FirestoreDeleter {
                     return@launch
                 }
 
-            firestore.use { db ->
+            firestore.use { session ->
+                val db = session.db
                 val rootDoc: DocumentReference = runCatching { db.document(docRoot) }
                     .getOrElse { t ->
                         send(FirestoreDeleteLogEvent.Error("docRoot 경로가 올바르지 않아요: '${request.docRoot}' (${t.message})"))
@@ -122,19 +122,18 @@ class DesktopFirestoreDeleter : FirestoreDeleter {
         deletedTotal
     }
 
-    private fun createFirestore(credentialFile: File): Firestore {
-        val usedApp = FirebaseApp.getApps().firstOrNull()
-        if (usedApp != null) {
-            return FirestoreClient.getFirestore(usedApp)
-        }
-
+    private fun createFirestore(credentialFile: File): FirestoreSession {
         val credentials = credentialFile.inputStream().use { GoogleCredentials.fromStream(it) }
         val options = FirebaseOptions.builder()
             .setCredentials(credentials)
             .build()
 
-        val app = FirebaseApp.initializeApp(options)
-        return FirestoreClient.getFirestore(app)
+        val appName = "researcher-delete-${UUID.randomUUID()}"
+        val app = FirebaseApp.initializeApp(options, appName)
+        return FirestoreSession(
+            db = FirestoreClient.getFirestore(app),
+            app = app,
+        )
     }
 
     private suspend fun <T> ApiFuture<T>.await(): T = withContext(Dispatchers.IO) {
@@ -146,6 +145,16 @@ class DesktopFirestoreDeleter : FirestoreDeleter {
             return block(this)
         } finally {
             runCatching { close() }
+        }
+    }
+
+    private class FirestoreSession(
+        val db: Firestore,
+        private val app: FirebaseApp,
+    ) : Closeable {
+        override fun close() {
+            runCatching { db.close() }
+            runCatching { app.delete() }
         }
     }
 
@@ -169,9 +178,5 @@ class DesktopFirestoreDeleter : FirestoreDeleter {
         }
 
         return Result.success(segments.joinToString("/"))
-    }
-
-    private companion object {
-        const val DEFAULT_BATCH_SIZE = 400
     }
 }

@@ -36,26 +36,41 @@ class ExportViewModel(
             }
 
             val config = appConfigRepository.loadOrDefault()
+            val allParticipants = config.allParticipants
             val participantId = participantIdOverride?.trim() ?: config.participantId.trim()
-            _uiState.update { it.copy(logs = it.logs + "DEBUG: requestedWithId=$participantIdOverride, resolvedId=$participantId") }
+            _uiState.update { it.copy(logs = it.logs + "DEBUG: allParticipants=$allParticipants, requestedWithId=$participantIdOverride, resolvedId=$participantId") }
 
-            // Resolve docRoot: prefer override in config, otherwise use participantId default
+            // Resolve export target:
+            // - allParticipants=true -> participants 컬렉션 루트
+            // - allParticipants=false -> 특정 참가자 문서 루트
             val docRootInConfig = config.docRoot?.trim()
-            val docRoot = if (!docRootInConfig.isNullOrBlank()) {
-                 docRootInConfig
+            val target: ExportTarget = if (allParticipants) {
+                ExportTarget.AllParticipants(
+                    participantsCollectionRoot = config.resolvedParticipantsCollectionRoot(),
+                )
             } else {
-                 "/studies/nursing-study-001/participants/$participantId"
+                val docRoot = if (!docRootInConfig.isNullOrBlank()) {
+                    docRootInConfig
+                } else {
+                    "/studies/nursing-study-001/participants/$participantId"
+                }
+                val effectiveParticipantId = participantId.takeIf { it.isNotBlank() }
+                    ?: deriveLastSegmentOrNull(docRoot)
+                    ?: ""
+                ExportTarget.SingleParticipant(
+                    participantId = effectiveParticipantId,
+                    docRoot = docRoot,
+                )
             }
 
-            if (participantId.isBlank() && docRoot.isBlank()) {
+            if (target is ExportTarget.SingleParticipant && target.participantId.isBlank() && target.docRoot.isBlank()) {
                 _uiState.update { it.copy(isRunning = false, logs = it.logs + "participantId 또는 docRoot를 입력해 주세요.") }
                 return@launch
             }
 
             val request = ExportRequest(
                 credentialPath = credentialPath,
-                participantId = participantId,
-                docRoot = docRoot,
+                target = target,
                 dateRange = config.dateRange,
                 limit = config.limit,
                 orderByField = config.orderByField,
@@ -86,6 +101,12 @@ class ExportViewModel(
 
     fun close() {
         scope.cancel()
+    }
+    
+    private fun deriveLastSegmentOrNull(path: String): String? {
+        val normalized = path.trim().trimStart('/')
+        val segments = normalized.split('/').filter { it.isNotBlank() }
+        return segments.lastOrNull()?.takeIf { it.isNotBlank() }
     }
 }
 

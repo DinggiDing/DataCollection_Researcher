@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -51,6 +52,7 @@ fun WorkflowDashboardScreen(
     uiState: WorkflowDashboardUiState,
     onChangeServiceKey: () -> Unit,
     onParticipantIdChanged: (String) -> Unit,
+    onAllParticipantsChanged: (Boolean) -> Unit,
     onSelectRangeQuickOption: (String) -> Unit,
     onRangeStartChanged: (String) -> Unit,
     onRangeEndChanged: (String) -> Unit,
@@ -89,6 +91,7 @@ fun WorkflowDashboardScreen(
                     uiState = uiState,
                     onChangeServiceKey = onChangeServiceKey,
                     onParticipantIdChanged = onParticipantIdChanged,
+                    onAllParticipantsChanged = onAllParticipantsChanged,
                     onSelectRangeQuickOption = onSelectRangeQuickOption,
                     onRangeStartChanged = onRangeStartChanged,
                     onRangeEndChanged = onRangeEndChanged,
@@ -202,6 +205,7 @@ private fun ConfigurationCard(
     uiState: WorkflowDashboardUiState,
     onChangeServiceKey: () -> Unit,
     onParticipantIdChanged: (String) -> Unit,
+    onAllParticipantsChanged: (Boolean) -> Unit,
     onSelectRangeQuickOption: (String) -> Unit,
     onRangeStartChanged: (String) -> Unit,
     onRangeEndChanged: (String) -> Unit,
@@ -248,6 +252,31 @@ private fun ConfigurationCard(
         )
 
         Spacer(Modifier.height(6.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "ALL PARTICIPANTS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (uiState.allParticipants) "전체 참가자에 대해 실행합니다." else "특정 participantId만 실행합니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = uiState.allParticipants,
+                onCheckedChange = onAllParticipantsChanged,
+            )
+        }
+ 
+        Spacer(Modifier.height(10.dp))
 
         Text(
             text = "PARTICIPANT ID",
@@ -260,6 +289,7 @@ private fun ConfigurationCard(
             onValueChange = onParticipantIdChanged,
             modifier = Modifier
                 .fillMaxWidth(),
+            enabled = !uiState.allParticipants,
             singleLine = true,
             label = { Text("participantId") },
             shape = ConfigControlShape,

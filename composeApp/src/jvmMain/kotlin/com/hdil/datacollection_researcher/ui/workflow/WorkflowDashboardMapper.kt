@@ -27,7 +27,8 @@ object WorkflowDashboardMapper {
 
     fun map(inputs: Inputs): WorkflowDashboardUiState {
         val credentialsSaved = inputs.credentials.status is CredentialsStatus.Saved
-        val participantReady = inputs.config.participantId.trim().isNotEmpty()
+        val allParticipants = inputs.config.allParticipants
+        val participantReady = allParticipants || inputs.config.participantId.trim().isNotEmpty()
 
         val serviceKeyStatusText = if (credentialsSaved) "Active" else "Not set"
         val serviceKeyStatusColor = if (credentialsSaved) Color(0xFF16A34A) else Color(0xFFDC2626)
@@ -39,7 +40,7 @@ object WorkflowDashboardMapper {
         val exportEnabled = credentialsSaved && participantReady && !inputs.export.isRunning
         val exportHint = when {
             !credentialsSaved -> "먼저 Credentials(서비스 계정 키)를 선택해 주세요."
-            !participantReady -> "participantId를 입력해 주세요."
+            !participantReady -> "participantId를 입력하거나, All participants를 선택해 주세요."
             else -> null
         }
 
@@ -90,7 +91,11 @@ object WorkflowDashboardMapper {
 
         val readinessTitle = if (participantReady) "Ready to Process" else "Setup Required"
         val readinessSubtitle = if (participantReady) {
-            "Participant ${inputs.config.participantId.trim()} selected. ${steps.count { it.enabled }} modules available."
+            if (allParticipants) {
+                "All participants selected. ${steps.count { it.enabled }} modules available."
+            } else {
+                "Participant ${inputs.config.participantId.trim()} selected. ${steps.count { it.enabled }} modules available."
+            }
         } else {
             "Participant ID가 필요합니다. 좌측 설정에서 입력해 주세요."
         }
@@ -100,7 +105,6 @@ object WorkflowDashboardMapper {
                 step = WorkflowStep.EXPORT,
                 title = "CONSOLE OUTPUT",
                 lines = buildStepConsoleLines(
-                    stepPrefix = "export",
                     logs = inputs.export.logs,
                     placeholder = "Waiting for export command...",
                 ),
@@ -109,7 +113,6 @@ object WorkflowDashboardMapper {
                 step = WorkflowStep.ANALYZE,
                 title = "CONSOLE OUTPUT",
                 lines = buildStepConsoleLines(
-                    stepPrefix = "analysis",
                     logs = inputs.analyze.logs,
                     placeholder = "Waiting for analysis...",
                 ),
@@ -118,7 +121,6 @@ object WorkflowDashboardMapper {
                 step = WorkflowStep.EXCEL,
                 title = "CONSOLE OUTPUT",
                 lines = buildStepConsoleLines(
-                    stepPrefix = "report",
                     logs = inputs.excel.logs,
                     placeholder = "Ready to generate report...",
                 ),
@@ -131,6 +133,7 @@ object WorkflowDashboardMapper {
             serviceKeyStatusColor = serviceKeyStatusColor,
             serviceKeyPath = serviceKeyPath,
             participantId = inputs.config.participantId,
+            allParticipants = allParticipants,
             rangeQuickOptions = listOf("1D", "1W", "1M", "3M", "All"),
             selectedRangeOption = inputs.config.preset?.toQuickOptionLabel(),
             rangeStartText = rangeStartText,
@@ -185,7 +188,6 @@ object WorkflowDashboardMapper {
     }
 
     private fun buildStepConsoleLines(
-        stepPrefix: String,
         logs: List<String>,
         placeholder: String,
     ): List<String> {

@@ -1,6 +1,6 @@
 package com.hdil.datacollection_researcher.excel
-
 import com.hdil.datacollection_researcher.analyze.DesktopCsvAnalyzer
+import com.hdil.datacollection_researcher.config.DateRange
 import com.hdil.datacollection_researcher.io.ParticipantOutputPaths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -12,7 +12,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
@@ -22,7 +22,11 @@ import java.time.format.DateTimeFormatter
  */
 class DesktopResearcherExcelGenerator : ResearcherExcelGenerator {
 
-    override fun generate(outputDirAbsolutePath: String, participantId: String?): Flow<ExcelLogEvent> = channelFlow {
+    override fun generate(
+        outputDirAbsolutePath: String,
+        participantId: String?,
+        dateRange: DateRange,
+    ): Flow<ExcelLogEvent> = channelFlow {
         launch(Dispatchers.IO) {
             val outputDir = File(outputDirAbsolutePath)
             if (!outputDir.exists() || !outputDir.isDirectory) {
@@ -47,7 +51,7 @@ class DesktopResearcherExcelGenerator : ResearcherExcelGenerator {
             val outXlsx = ParticipantOutputPaths.buildXlsxFile(
                 baseOutputDir = outputDir,
                 participantId = participantId,
-                filePrefix = "KoreaTime_ResearcherView",
+                filePrefix = "KoreaTime_ResearcherView_${dateRangeFileLabel(dateRange)}",
             )
 
             send(ExcelLogEvent.Info("XLSX 생성 시작: ${outXlsx.name}"))
@@ -64,9 +68,6 @@ class DesktopResearcherExcelGenerator : ResearcherExcelGenerator {
                     values.forEachIndexed { idx, v ->
                         val cell = row.createCell(idx)
                         cell.setCellValue(v)
-                        if (r == 1 || (r >= 5 && r == 5)) {
-                            // no-op (header handled below)
-                        }
                     }
                 }
 
@@ -166,6 +167,25 @@ class DesktopResearcherExcelGenerator : ResearcherExcelGenerator {
         // Excel sheet name restrictions: <=31, cannot contain: : \\ / ? * [ ]
         val cleaned = raw.replace(Regex("[:\\\\/?*\\[\\]]"), " ").trim()
         return cleaned.take(31).ifBlank { "Sheet" }
+    }
+
+    private fun dateRangeFileLabel(dateRange: DateRange): String {
+        val start = dateRange.startMillisUtc
+        val end = dateRange.endMillisUtc
+        if (start == null && end == null) return "all_time"
+
+        val fmt = DateTimeFormatter.ofPattern("yyyyMMdd").withZone(ZoneOffset.UTC)
+        val startText = start?.let { fmt.format(Instant.ofEpochMilli(it)) }
+        val endInclusiveText = end
+            ?.minus(24L * 60L * 60L * 1000L)
+            ?.let { fmt.format(Instant.ofEpochMilli(it)) }
+
+        return when {
+            startText != null && endInclusiveText != null -> "${startText}_to_${endInclusiveText}"
+            startText != null -> "from_${startText}"
+            endInclusiveText != null -> "until_${endInclusiveText}"
+            else -> "all_time"
+        }
     }
 
     private fun XSSFWorkbook.createHeaderStyle(): XSSFCellStyle {

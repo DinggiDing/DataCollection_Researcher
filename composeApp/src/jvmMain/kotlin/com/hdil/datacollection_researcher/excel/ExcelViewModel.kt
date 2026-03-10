@@ -39,7 +39,12 @@ class ExcelViewModel(
             val participantDir = ParticipantOutputPaths.participantDir(outputRoot, participantId)
             _uiState.update { it.copy(logs = it.logs + "대상 폴더: ${participantDir.absolutePath}") }
 
-            generator.generate(participantDir.absolutePath, participantId).collect { event ->
+            // generator는 base outputRoot를 기준으로 participantId 폴더를 찾습니다.
+            generator.generate(
+                outputRoot.absolutePath,
+                participantId,
+                config.dateRange,
+            ).collect { event ->
                 val line = when (event) {
                     is ExcelLogEvent.Info -> event.message
                     is ExcelLogEvent.Error -> "오류: ${event.message}"
@@ -53,6 +58,53 @@ class ExcelViewModel(
             }
 
             _uiState.update { it.copy(isRunning = false, logs = it.logs + "Excel(리포트) 생성 종료") }
+        }
+    }
+    
+    fun runExcelAllParticipants() {
+        val outputRoot = File(appDirProvider.appDir(), "output")
+        val participantDirs = outputRoot.listFiles()
+            ?.filter { it.isDirectory }
+            .orEmpty()
+            .sortedBy { it.name.lowercase() }
+        
+        scope.launch {
+            _uiState.update {
+                it.copy(
+                    isRunning = true,
+                    logs = listOf(
+                        "Excel(All) 생성 시작…",
+                        "대상 루트: ${outputRoot.absolutePath}",
+                        "참가자 폴더 수: ${participantDirs.size}",
+                    ),
+                )
+            }
+            val config = appConfigRepository.loadOrDefault()
+            
+            if (participantDirs.isEmpty()) {
+                _uiState.update { it.copy(isRunning = false, logs = it.logs + "참가자 폴더가 없어요. Export/Analyze를 먼저 실행해 주세요.") }
+                return@launch
+            }
+            
+            for (dir in participantDirs) {
+                val participantId = dir.name
+                _uiState.update { it.copy(logs = (it.logs + "=== Participant: $participantId ===").takeLast(500)) }
+                
+                generator.generate(
+                    outputRoot.absolutePath,
+                    participantId,
+                    config.dateRange,
+                ).collect { event ->
+                    val line = when (event) {
+                        is ExcelLogEvent.Info -> "[$participantId] ${event.message}"
+                        is ExcelLogEvent.Error -> "[$participantId] 오류: ${event.message}"
+                        is ExcelLogEvent.Finished -> "[$participantId] 완료: ${File(event.outputXlsxPath).name}"
+                    }
+                    _uiState.update { it.copy(logs = (it.logs + line).takeLast(500)) }
+                }
+            }
+            
+            _uiState.update { it.copy(isRunning = false, logs = it.logs + "Excel(All) 생성 종료") }
         }
     }
 

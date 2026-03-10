@@ -25,7 +25,8 @@ class AnalyzeViewModel(
 
     fun runAnalyze(participantId: String? = null) {
         val outputRoot = File(appDirProvider.appDir(), "output")
-        val participantDir = ParticipantOutputPaths.participantDir(outputRoot, participantId)
+        val normalizedId = participantId?.trim()?.takeIf { it.isNotBlank() }
+        val participantDir = ParticipantOutputPaths.participantDir(outputRoot, normalizedId)
 
         scope.launch {
             _uiState.update {
@@ -60,6 +61,54 @@ class AnalyzeViewModel(
             }
 
             _uiState.update { it.copy(isRunning = false, logs = it.logs + "Analyze 종료") }
+        }
+    }
+    
+    fun runAnalyzeAllParticipants() {
+        val outputRoot = File(appDirProvider.appDir(), "output")
+        val participantDirs = outputRoot.listFiles()
+            ?.filter { it.isDirectory }
+            .orEmpty()
+            .sortedBy { it.name.lowercase() }
+        
+        scope.launch {
+            _uiState.update {
+                it.copy(
+                    isRunning = true,
+                    logs = listOf(
+                        "Analyze(All) 시작…",
+                        "대상 루트: ${outputRoot.absolutePath}",
+                        "참가자 폴더 수: ${participantDirs.size}",
+                    ),
+                )
+            }
+            
+            if (participantDirs.isEmpty()) {
+                _uiState.update { it.copy(isRunning = false, logs = it.logs + "참가자 폴더가 없어요. Export를 먼저 실행해 주세요.") }
+                return@launch
+            }
+            
+            for (dir in participantDirs) {
+                val participantId = dir.name
+                _uiState.update { it.copy(logs = (it.logs + "=== Participant: $participantId ===").takeLast(500)) }
+                
+                analyzer.run(dir.absolutePath).collect { event ->
+                    val line = when (event) {
+                        is AnalyzeLogEvent.Info -> "[$participantId] ${event.message}"
+                        is AnalyzeLogEvent.Error -> "[$participantId] 오류: ${event.message}"
+                        is AnalyzeLogEvent.FileStarted -> {
+                            val relative = event.inputPath.replace(dir.absolutePath + File.separator, "")
+                            "[$participantId] 시작: $relative"
+                        }
+                        is AnalyzeLogEvent.FileFinished -> {
+                            "[$participantId] 완료: ${File(event.outputKoreaTimeCsv).name}, ${File(event.outputAnalysisCsv).name}"
+                        }
+                    }
+                    _uiState.update { it.copy(logs = (it.logs + line).takeLast(500)) }
+                }
+            }
+            
+            _uiState.update { it.copy(isRunning = false, logs = it.logs + "Analyze(All) 종료") }
         }
     }
 

@@ -30,6 +30,7 @@ class AppConfigViewModel(
                         val base = it.copy(
                             isLoading = false,
                             participantId = config.participantId,
+                            allParticipants = config.allParticipants,
                             docRootOverride = config.docRoot.orEmpty(),
                             dateRangeResult = config.dateRange,
                             dateRangeError = null,
@@ -49,6 +50,10 @@ class AppConfigViewModel(
 
     fun onParticipantIdChanged(value: String) {
         _uiState.update { it.copy(participantId = value) }
+    }
+    
+    fun onAllParticipantsChanged(value: Boolean) {
+        _uiState.update { it.copy(allParticipants = value) }
     }
 
     fun onDocRootOverrideChanged(value: String) {
@@ -113,6 +118,7 @@ class AppConfigViewModel(
 
             val config = AppConfig(
                 participantId = current.participantId.trim(),
+                allParticipants = current.allParticipants,
                 docRoot = current.docRootOverride.trim().takeIf { it.isNotBlank() },
                 dateRange = current.dateRangeResult,
                 limit = limit,
@@ -212,6 +218,7 @@ data class AppConfigUiState(
     val message: String? = null,
 
     val participantId: String = "",
+    val allParticipants: Boolean = false,
     val docRootOverride: String = "",
 
     val preset: DateRangePreset? = null,

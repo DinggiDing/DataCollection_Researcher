@@ -1,23 +1,8 @@
 package com.hdil.datacollection_researcher
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -27,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hdil.datacollection_researcher.analyze.AnalyzeViewModel
@@ -35,7 +19,6 @@ import com.hdil.datacollection_researcher.analyze.DesktopCsvAnalyzer
 import com.hdil.datacollection_researcher.config.AppConfigViewModel
 import com.hdil.datacollection_researcher.config.DateRangePreset
 import com.hdil.datacollection_researcher.config.DesktopAppConfigRepository
-import com.hdil.datacollection_researcher.credentials.CredentialsStatus
 import com.hdil.datacollection_researcher.credentials.CredentialsViewModel
 import com.hdil.datacollection_researcher.credentials.DefaultAppDirProvider
 import com.hdil.datacollection_researcher.credentials.DesktopCredentialsRepository
@@ -45,13 +28,9 @@ import com.hdil.datacollection_researcher.export.DesktopFirestoreExporter
 import com.hdil.datacollection_researcher.export.ExportViewModel
 import com.hdil.datacollection_researcher.excel.DesktopResearcherExcelGenerator
 import com.hdil.datacollection_researcher.excel.ExcelViewModel
-import com.hdil.datacollection_researcher.io.ParticipantOutputPaths
 import com.hdil.datacollection_researcher.ui.AppSection
 import com.hdil.datacollection_researcher.ui.AppSidebar
 import com.hdil.datacollection_researcher.ui.ResearcherTheme
-import com.hdil.datacollection_researcher.ui.SectionCard
-import com.hdil.datacollection_researcher.ui.StepPanel
-import com.hdil.datacollection_researcher.ui.ToggleButton
 import com.hdil.datacollection_researcher.status.DeleteParticipantDataUseCase
 import com.hdil.datacollection_researcher.status.DesktopParticipantDataRepository
 import com.hdil.datacollection_researcher.status.DesktopParticipantStatusRepository
@@ -60,10 +39,8 @@ import com.hdil.datacollection_researcher.ui.settings.ParticipantStatusScreen
 import com.hdil.datacollection_researcher.ui.workflow.WorkflowDashboardMapper
 import com.hdil.datacollection_researcher.ui.workflow.WorkflowDashboardScreen
 import com.hdil.datacollection_researcher.ui.workflow.WorkflowStep
+import androidx.compose.ui.Alignment
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import com.hdil.datacollection_researcher.delete.DesktopFirestoreDeleter
 import com.hdil.datacollection_researcher.delete.FirestoreDeleteViewModel
 import com.hdil.datacollection_researcher.ui.delete.DeleteScreen
@@ -141,17 +118,27 @@ fun App() {
         val excelState by excelViewModel.uiState.collectAsState()
 
         val outputDir = remember(appDirProvider) { File(appDirProvider.appDir(), "output") }
+        val allParticipants = configState.allParticipants
         val participantId = configState.participantId.trim().takeIf { it.isNotBlank() }
-        val participantOutputDir = remember(outputDir, participantId) {
-            ParticipantOutputPaths.participantDir(outputDir, participantId)
+        fun participantDirNoMkdir(outputRoot: File, id: String?): File? {
+            val trimmed = id?.trim()?.takeIf { it.isNotBlank() } ?: return null
+            val safe = trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
+            return File(outputRoot, safe)
+        }
+        val participantOutputDir = remember(outputDir, participantId, allParticipants) {
+            if (allParticipants) null else participantDirNoMkdir(outputDir, participantId)
         }
 
-        val exportFilesExist = remember(participantOutputDir, exportState.logs.size) {
-            participantOutputDir.walkTopDown()
+        val exportFilesExist = remember(participantOutputDir, allParticipants, exportState.logs.size) {
+            val root = if (allParticipants) outputDir else participantOutputDir
+            if (root == null || !root.exists() || !root.isDirectory) return@remember false
+            root.walkTopDown()
                 .any { it.isFile && it.extension.equals("csv", ignoreCase = true) && it.name.contains("_export", ignoreCase = true) }
         }
-        val koreaTimeFilesExist = remember(participantOutputDir, analyzeState.logs.size) {
-            participantOutputDir.walkTopDown()
+        val koreaTimeFilesExist = remember(participantOutputDir, allParticipants, analyzeState.logs.size) {
+            val root = if (allParticipants) outputDir else participantOutputDir
+            if (root == null || !root.exists() || !root.isDirectory) return@remember false
+            root.walkTopDown()
                 .any { it.isFile && it.name.contains("_korea_time", ignoreCase = true) && it.extension.equals("csv", ignoreCase = true) }
         }
 
@@ -198,6 +185,7 @@ fun App() {
                                 credentialsViewModel.saveFromSelectedFile(selected)
                             },
                             onParticipantIdChanged = configViewModel::onParticipantIdChanged,
+                            onAllParticipantsChanged = configViewModel::onAllParticipantsChanged,
                             onSelectRangeQuickOption = { option ->
                                 when (option) {
                                     "1D" -> configViewModel.selectPreset(DateRangePreset.LAST_1D)
@@ -215,9 +203,15 @@ fun App() {
                             },
                             onRunStep = { step ->
                                 when (step) {
-                                    WorkflowStep.EXPORT -> exportViewModel.runExport(configState.participantId)
-                                    WorkflowStep.ANALYZE -> analyzeViewModel.runAnalyze(configState.participantId)
-                                    WorkflowStep.EXCEL -> excelViewModel.runExcel(configState.participantId)
+                                    WorkflowStep.EXPORT -> exportViewModel.runExport()
+                                    WorkflowStep.ANALYZE -> {
+                                        if (configState.allParticipants) analyzeViewModel.runAnalyzeAllParticipants()
+                                        else analyzeViewModel.runAnalyze(configState.participantId)
+                                    }
+                                    WorkflowStep.EXCEL -> {
+                                        if (configState.allParticipants) excelViewModel.runExcelAllParticipants()
+                                        else excelViewModel.runExcel(configState.participantId)
+                                    }
                                 }
                             },
                             onClearStepLogs = { step ->
